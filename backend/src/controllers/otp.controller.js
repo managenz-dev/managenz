@@ -76,33 +76,31 @@ exports.sendOTP = async (req, res) => {
       create: { email, otpCode, expiresAt, isVerified: false },
     });
 
-    // ✅ SEND EMAIL VIA RESEND - with proper error handling
     // ✅ SEND EMAIL VIA RESEND - with FULL error logging
-const html = createOTPHTML(otpCode);
+    const html = createOTPHTML(otpCode);
+    
+    console.log(`📤 Attempting to send email via Resend to ${email}...`);
+    console.log(`🔑 Using API key: ${process.env.RESEND_API_KEY?.substring(0, 15)}...`);
+    console.log(`📧 From: ${process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>"}`);
 
-console.log(`📤 Attempting to send email via Resend to ${email}...`);
-console.log(`🔑 Using API key: ${process.env.RESEND_API_KEY?.substring(0, 15)}...`);
-console.log(`📧 From: ${process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>"}`);
-
-try {
-  const emailResult = await resend.emails.send({
-    from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
-    to: [email],
-    subject: "🔐 Verify Your ManaGenz Account",
-    html,
-  });
-  
-  // ✅ Log the FULL Resend response
-  console.log(`✅ Resend response:`, JSON.stringify(emailResult, null, 2));
-  console.log(`🔐 OTP for ${email}: ${otpCode}`);
-  
-} catch (resendError) {
-  // ❌ Log the EXACT Resend error with full details
-  console.error(`❌ Resend API error for ${email}:`);
-  console.error(`Error message:`, resendError.message);
-  console.error(`Error details:`, JSON.stringify(resendError, null, 2));
-  // Still return success to frontend (so UI doesn't break), but log the error
-}
+    try {
+      const emailResult = await resend.emails.send({
+        from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
+        to: [email],
+        subject: "🔐 Verify Your ManaGenz Account",
+        html,
+      });
+      
+      // ✅ Log the FULL Resend response
+      console.log(`✅ Resend response:`, JSON.stringify(emailResult, null, 2));
+      console.log(`🔐 OTP for ${email}: ${otpCode}`);
+      
+    } catch (resendError) {
+      // ❌ Log the EXACT Resend error with full details
+      console.error(`❌ Resend API error for ${email}:`);
+      console.error(`Error message:`, resendError.message);
+      console.error(`Error details:`, JSON.stringify(resendError, null, 2));
+    }
 
     res.json({ success: true, message: "OTP sent successfully to your email" });
     
@@ -133,16 +131,18 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
     }
 
+    // ✅ FIXED: Use separate data variable for Prisma update
     const updateVerificationData = { isVerified: true };
     await prisma.emailVerification.update({
       where: { id: verification.id },
-       updateVerificationData,
+      data: updateVerificationData,
     });
 
+    // ✅ FIXED: Use separate data variable for Prisma update
     const updateUserEmailData = { isEmailVerified: true };
     await prisma.user.update({
       where: { email },
-       updateUserEmailData,
+      data: updateUserEmailData,
     });
 
     res.json({ success: true, message: "Email verified successfully" });
