@@ -59,10 +59,11 @@ app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "ManaGenz API running", timestamp: new Date().toISOString() });
 });
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ── Safe Route Loader (prevents crashes if file missing) ───────────────────────
 function safeRoute(path) {
-  try { return require(path); }
-  catch (e) {
+  try { 
+    return require(path); 
+  } catch (e) {
     console.warn(`⚠️ Route file not found: ${path} — ${e.message}`);
     const r = require("express").Router();
     r.all("*", (req, res) => res.status(501).json({ success: false, message: `Route ${path} not implemented` }));
@@ -70,20 +71,34 @@ function safeRoute(path) {
   }
 }
 
+// ── Routes ────────────────────────────────────────────────────────────────────
+// ✅ Auth routes (with rate limiter) - ONLY ONE mounting
 app.use("/api/auth", authLimiter, require("./routes/auth"));
+
+// ✅ OTP routes (for email verification)
+app.use("/api/otp", limiter, safeRoute("./routes/otp.routes"));
+
+// ✅ Domain selection routes
 app.use("/api/domains", limiter, require("./routes/domains"));
+
+// ✅ Onboarding routes
+app.use("/api/onboarding", limiter, require("./routes/onboarding.routes"));
+
+// ✅ Admin routes
 app.use("/api/admin", limiter, require("./routes/admin"));
+
+// ✅ Employee routes
 app.use("/api/emp", limiter, require("./routes/employee.routes"));
+
+// ✅ Simulation routes
 app.use("/api/simulations", limiter, require("./routes/simulation-player.routes"));
+
+// ✅ Optional routes (won't crash if missing)
 app.use("/api/badges", limiter, safeRoute("./routes/badge.routes"));
 app.use("/api", limiter, safeRoute("./routes/leaderboard-analytics"));
-// Add inside backend/src/server.js
-app.use("/api/feedback", require("./routes/feedback.routes"));
-app.use("/api/auth", require("./routes/auth.routes"));
-app.use("/api/otp", require("./routes/otp.routes"));
-app.use("/api/onboarding", require("./routes/onboarding.routes"));
+app.use("/api/feedback", limiter, safeRoute("./routes/feedback.routes"));
 
-// ── 404 ───────────────────────────────────────────────────────────────────────
+// ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `${req.method} ${req.path} not found` });
 });
@@ -125,8 +140,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
+// ── Start Server ──────────────────────────────────────────────────────────────
+// ✅ Use PORT 10000 for Render compatibility, fallback to 5000 for local
+const PORT = process.env.PORT || 10000;
+
 const startServer = async () => {
   try {
     const prisma = require("./utils/prisma");
