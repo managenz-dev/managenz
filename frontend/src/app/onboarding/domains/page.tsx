@@ -1,191 +1,259 @@
 // frontend/src/app/onboarding/domains/page.tsx
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Package, Megaphone, DollarSign, Rocket, Zap, Users, Target, Sparkles, 
-  Check, Loader2, ArrowLeft 
-} from "lucide-react";
-import { useAuthStore } from "@/store/auth.store";
+import { ArrowLeft, Check, Briefcase, TrendingUp, DollarSign, Users, Zap, Target, Lightbulb, BarChart3 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 
-const DOMAINS = [
-  { id: "product-management", name: "Product Management", icon: Package, description: "Roadmaps, prioritization, stakeholder trade-offs", color: "#818cf8" },
-  { id: "marketing", name: "Marketing", icon: Megaphone, description: "Brand building, campaigns, audience growth", color: "#f43f5e" },
-  { id: "sales", name: "Sales", icon: DollarSign, description: "Revenue generation, pipeline management", color: "#10b981" },
-  { id: "finance", name: "Finance", icon: DollarSign, description: "Budgeting, forecasting, capital decisions", color: "#3b82f6" },
-  { id: "operations", name: "Operations", icon: Zap, description: "Process design, efficiency, supply chain", color: "#f59e0b" },
-  { id: "human-resources", name: "Human Resources", icon: Users, description: "Hiring, culture, performance management", color: "#ec4899" },
-  { id: "strategy", name: "Strategy", icon: Target, description: "Competitive positioning, growth levers", color: "#06b6d4" },
-  { id: "entrepreneurship", name: "Entrepreneurship", icon: Sparkles, description: "Founder decisions, fundraising, pivots", color: "#f97316" },
+interface Domain {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+const DOMAINS: Domain[] = [
+  { id: "product", name: "Product Management", description: "Roadmaps, prioritization, stakeholder trade-offs", icon: "cube", color: "from-blue-500 to-indigo-600" },
+  { id: "marketing", name: "Marketing", description: "Brand building, campaigns, audience growth", icon: "megaphone", color: "from-pink-500 to-rose-600" },
+  { id: "sales", name: "Sales", description: "Revenue generation, pipeline management", icon: "dollar", color: "from-emerald-500 to-teal-600" },
+  { id: "finance", name: "Finance", description: "Budgeting, forecasting, capital decisions", icon: "chart", color: "from-cyan-500 to-blue-600" },
+  { id: "operations", name: "Operations", description: "Process design, efficiency, supply chain", icon: "zap", color: "from-amber-500 to-orange-600" },
+  { id: "hr", name: "Human Resources", description: "Hiring, culture, performance management", icon: "users", color: "from-purple-500 to-pink-600" },
+  { id: "strategy", name: "Strategy", description: "Competitive positioning, growth levers", icon: "target", color: "from-teal-500 to-cyan-600" },
+  { id: "entrepreneurship", name: "Entrepreneurship", description: "Founder decisions, fundraising, pivots", icon: "lightbulb", color: "from-violet-500 to-purple-600" },
 ];
 
-export default function DomainGalleryPage() {
+const iconMap: Record<string, any> = {
+  cube: Briefcase, megaphone: TrendingUp, dollar: DollarSign, chart: BarChart3,
+  zap: Zap, users: Users, target: Target, lightbulb: Lightbulb,
+};
+
+export default function DomainSelectionPage() {
   const router = useRouter();
-  const { fetchMe } = useAuthStore();
+  const [primaryDomain, setPrimaryDomain] = useState<string | null>(null);
+  const [supportingDomains, setSupportingDomains] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [primary, setPrimary] = useState<string | null>(null);
-  const [supporting, setSupporting] = useState<string[]>([]);
+  const [user, setUser] = useState<any>(null);
 
+  // Check auth on mount
   useEffect(() => {
-    const check = async () => {
-      await fetchMe();
-      const state = useAuthStore.getState();
-      const u = state.user;
-      if (!u) {
-        router.replace("/auth/login");
-        return;
-      }
-      // ✅ FIXED: Check userType first, then selectedDomainId
-      if (!u.userType) {
-        router.replace("/onboarding/user-type");
-        return;
-      }
-      if (u.selectedDomainId) {
-        router.replace("/dashboard");
-        return;
-      }
-    };
-    check();
-  }, [fetchMe, router]);
-
-  const togglePrimary = (id: string) => {
-    if (primary === id) setPrimary(null);
-    else {
-      setPrimary(id);
-      setSupporting(s => s.filter(d => d !== id));
-    }
-  };
-
-  const toggleSupporting = (id: string) => {
-    if (id === primary) return;
-    setSupporting(s => 
-      s.includes(id) ? s.filter(d => d !== id) : 
-      s.length < 2 ? [...s, id] : s
-    );
-  };
-
-  const handleSubmit = async () => {
-    if (!primary) {
-      toast.error("Please select a primary domain");
+    const storedUser = localStorage.getItem("managenz_user");
+    const token = localStorage.getItem("managenz_token");
+    
+    if (!token) {
+      router.replace("/auth/login");
       return;
     }
+    if (storedUser) setUser(JSON.parse(storedUser));
+  }, [router]);
+
+  // ✅ FIXED: Single click handler with proper primary/supporting logic
+  const handleDomainClick = (domainId: string) => {
+    // If already selected, deselect it
+    if (primaryDomain === domainId) {
+      setPrimaryDomain(null);
+      return;
+    }
+    if (supportingDomains.includes(domainId)) {
+      setSupportingDomains(prev => prev.filter(id => id !== domainId));
+      return;
+    }
+
+    // If not selected, determine where to place it
+    if (!primaryDomain) {
+      // No primary yet → make this the primary
+      setPrimaryDomain(domainId);
+    } else {
+      // Primary exists → add as supporting (max 2)
+      if (supportingDomains.length < 2) {
+        setSupportingDomains(prev => [...prev, domainId]);
+      } else {
+        toast.error("You can select up to 2 supporting domains. Deselect one first.");
+      }
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!primaryDomain) {
+      toast.error("Please select a primary domain to continue");
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post("/onboarding/select-domains", {
-        primaryDomainId: primary,
-        supportingDomainIds: supporting,
+      // ✅ Correct endpoint matching backend route
+      await api.post("/onboarding/domains", {
+        primaryDomain,
+        supportingDomains,
       });
-      toast.success("All set! Welcome to ManaGenz.");
-      router.push("/dashboard");
+
+      toast.success("Domains saved! Redirecting to dashboard...");
+      
+      // Small delay for toast to show
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 600);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to save preferences");
+      console.error("Error saving domains:", err);
+      toast.error(err?.response?.data?.message || "Failed to save domains. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const getIcon = (iconName: string) => {
+    const IconComponent = iconMap[iconName] || Briefcase;
+    return <IconComponent className="w-6 h-6" />;
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-dark-950 text-white">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => router.back()} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-white/60" />
+    <div className="min-h-screen bg-[#0a0a0f] py-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-slate-400 hover:text-white mb-4 transition-colors"
+            type="button"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
           </button>
-          <div>
-            <h1 className="font-display font-bold text-2xl">Choose Your Domains</h1>
-            <p className="font-body text-white/60 text-sm">
-              Pick 1 primary domain and up to 2 supporting domains to personalize your experience.
-            </p>
-          </div>
+          <h1 className="font-display font-bold text-3xl text-white mb-2">
+            Choose Your Domains
+          </h1>
+          <p className="font-body text-slate-400">
+            Pick <span className="text-emerald-400 font-semibold">1 primary domain</span> and up to <span className="text-emerald-400 font-semibold">2 supporting domains</span> to personalize your experience.
+          </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {DOMAINS.map(domain => {
-            const Icon = domain.icon;
-            const isPrimary = primary === domain.id;
-            const isSupporting = supporting.includes(domain.id);
+        {/* Domain Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {DOMAINS.map((domain) => {
+            const isPrimary = primaryDomain === domain.id;
+            const isSupporting = supportingDomains.includes(domain.id);
+            const isDisabled = !isSupporting && supportingDomains.length >= 2;
+
             return (
-              <div 
+              <button
                 key={domain.id}
-                className={`relative p-5 rounded-2xl border cursor-pointer transition-all duration-200
+                type="button"
+                onClick={() => handleDomainClick(domain.id)}
+                className={`
+                  relative p-6 rounded-xl border-2 text-left transition-all duration-200 outline-none
                   ${isPrimary 
-                    ? "bg-brand-500/20 border-brand-500 ring-2 ring-brand-500" 
-                    : isSupporting 
-                      ? "bg-white/5 border-brand-400/50" 
-                      : "bg-white/5 border-white/10 hover:border-white/20"
-                  }`}
-                onClick={() => togglePrimary(domain.id)}
+                    ? `bg-gradient-to-br ${domain.color} border-transparent shadow-lg` 
+                    : isSupporting
+                    ? `bg-slate-800/50 border-emerald-500/50`
+                    : isDisabled
+                    ? "bg-slate-900/30 border-slate-800 opacity-50 cursor-not-allowed"
+                    : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50"
+                  }
+                `}
               >
-                {isPrimary && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center z-10">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                {!isPrimary && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); toggleSupporting(domain.id); }}
-                    className={`absolute top-3 right-3 w-5 h-5 rounded-full border flex items-center justify-center transition-colors z-10
-                      ${isSupporting 
-                        ? "bg-brand-500 border-brand-500" 
-                        : "border-white/30 hover:border-brand-400"
-                      }`}
-                    title={isSupporting ? "Remove as supporting" : "Add as supporting domain"}
-                  >
-                    {isSupporting && <Check className="w-3 h-3 text-white" />}
-                  </button>
-                )}
-                <div className="flex items-start gap-3">
-                  <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${domain.color}20`, border: `1px solid ${domain.color}40` }}
-                  >
-                    <Icon className="w-5 h-5" style={{ color: domain.color }} />
-                  </div>
-                  <div>
-                    <p className="font-body font-semibold text-sm">{domain.name}</p>
-                    <p className="font-body text-xs text-white/50 mt-1 line-clamp-2">{domain.description}</p>
-                  </div>
+                {/* Selection Indicator */}
+                <div className="absolute top-4 right-4">
+                  {isPrimary ? (
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                    </div>
+                  ) : isSupporting ? (
+                    <div className="w-6 h-6 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center">
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    </div>
+                  ) : (
+                    <div className="w-6 h-6 bg-slate-800 border-2 border-slate-700 rounded-full" />
+                  )}
                 </div>
-              </div>
+
+                {/* Icon */}
+                <div className={`
+                  w-12 h-12 rounded-lg flex items-center justify-center mb-4
+                  ${isPrimary ? "bg-white/20" : `bg-gradient-to-br ${domain.color}`}
+                `}>
+                  {getIcon(domain.icon)}
+                </div>
+
+                {/* Content */}
+                <h3 className={`font-semibold mb-2 ${isPrimary ? "text-white" : "text-slate-200"}`}>
+                  {domain.name}
+                </h3>
+                <p className={`text-sm ${isPrimary ? "text-white/80" : "text-slate-400"}`}>
+                  {domain.description}
+                </p>
+
+                {/* Label */}
+                {isPrimary && (
+                  <div className="mt-3 text-xs font-bold text-white uppercase tracking-wider">
+                    Primary Domain
+                  </div>
+                )}
+                {isSupporting && (
+                  <div className="mt-3 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                    Supporting Domain
+                  </div>
+                )}
+              </button>
             );
           })}
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-          <p className="font-mono text-xs text-white/40 uppercase tracking-wider mb-3">Your Selection</p>
-          <div className="flex flex-wrap gap-2">
-            {primary ? (
-              <span className="px-3 py-1.5 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-300 text-sm font-body flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5" /> Primary: {DOMAINS.find(d => d.id === primary)?.name}
+        {/* Selection Summary */}
+        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">YOUR SELECTION</h3>
+          <div className="flex flex-wrap gap-3">
+            {primaryDomain ? (
+              <span className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-400 text-sm font-medium flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                Primary: {DOMAINS.find(d => d.id === primaryDomain)?.name}
               </span>
             ) : (
-              <span className="px-3 py-1.5 rounded-full bg-white/5 border border-dashed border-white/20 text-white/40 text-sm font-body">
-                Select a primary domain
+              <span className="px-4 py-2 bg-slate-800/50 border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">
+                No primary domain selected
               </span>
             )}
-            {supporting.map(id => (
-              <span key={id} className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm font-body flex items-center gap-1.5">
-                Supporting: {DOMAINS.find(d => d.id === id)?.name}
+            {supportingDomains.map(domainId => (
+              <span key={domainId} className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 text-sm flex items-center gap-2">
+                {DOMAINS.find(d => d.id === domainId)?.name}
               </span>
             ))}
-            {supporting.length < 2 && supporting.length > 0 && (
-              <span className="px-3 py-1.5 rounded-full bg-white/5 border border-dashed border-white/20 text-white/30 text-sm font-body">
-                +1 more supporting (optional)
+            {supportingDomains.length < 2 && (
+              <span className="px-4 py-2 bg-slate-800/30 border border-dashed border-slate-700/50 rounded-lg text-slate-500 text-sm">
+                +{2 - supportingDomains.length} more supporting domain(s)
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center justify-end">
-          <button 
-            onClick={handleSubmit}
-            disabled={loading || !primary}
-            className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-body font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Continue Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={handleContinue}
+            disabled={!primaryDomain || loading}
+            className="px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-violet-500/25 disabled:shadow-none flex items-center gap-2"
           >
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : "Continue to Dashboard"}
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Continue to Dashboard"
+            )}
           </button>
         </div>
       </div>
