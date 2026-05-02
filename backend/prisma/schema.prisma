@@ -91,13 +91,13 @@ model Employee {
 }
 
 model EmailVerification {
-  id         String   @id @default(uuid())
-  email      String
+  id         String   @id @default(cuid())
+  email      String   @unique
   otpCode    String
   expiresAt  DateTime
   isVerified Boolean  @default(false)
   createdAt  DateTime @default(now())
-
+  
   @@index([email])
   @@map("email_verifications")
 }
