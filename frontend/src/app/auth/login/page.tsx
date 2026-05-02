@@ -10,20 +10,18 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // ✅ Get returnTo from URL params (decode it properly)
+  // ✅ Get and decode returnTo parameter safely
   const returnTo = searchParams.get("returnTo") 
     ? decodeURIComponent(searchParams.get("returnTo")!) 
     : "/dashboard";
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  // ✅ CRITICAL: Track if we're still checking auth to prevent flicker
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // ✅ Check auth ONLY once after component mounts
+  // ✅ Check auth ONLY once after mount, with cleanup
   useEffect(() => {
     let mounted = true;
     
@@ -36,17 +34,15 @@ export default function LoginPage() {
       try {
         const token = localStorage.getItem("managenz_token");
         
-        // Only redirect if we have a valid token AND we're not already on an auth page
-        if (token && !window.location.pathname.startsWith("/auth")) {
-          // Verify token is still valid with a quick API call (optional but recommended)
+        if (token) {
           try {
+            // Verify token is still valid
             await api.get("/auth/me");
-            // Token is valid, redirect
             if (mounted) {
               router.replace(returnTo);
             }
           } catch {
-            // Token invalid, clear it and stay on login
+            // Token invalid, clear it
             localStorage.removeItem("managenz_token");
             localStorage.removeItem("managenz_user");
             document.cookie = "managenz_token=; path=/; max-age=0";
@@ -55,7 +51,7 @@ export default function LoginPage() {
       } catch (err) {
         console.error("Auth check error:", err);
       } finally {
-        // ✅ Only set to false if still mounted
+        // ✅ Only update state if still mounted
         if (mounted) {
           setIsCheckingAuth(false);
         }
@@ -64,29 +60,34 @@ export default function LoginPage() {
     
     checkAuth();
     
-    // ✅ Cleanup function to prevent state updates on unmounted component
+    // ✅ Cleanup to prevent memory leaks
     return () => {
       mounted = false;
     };
-  }, [router, returnTo]); // ✅ Proper dependency array
+  }, [router, returnTo]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      toast.error("Please enter both email and password");
+    // ✅ Validate inputs
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    
+    if (!trimmedEmail || !trimmedPassword) {
+      toast.error("Email and password are required");
       return;
     }
 
     setLoading(true);
     try {
+      // ✅ Send exact field names backend expects
       const response = await api.post("/auth/login", {
-        email: email.toLowerCase().trim(),
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
       });
 
       if (response.data.success && response.data.token) {
-        // ✅ Save token to localStorage
+        // ✅ Save token to localStorage FIRST
         localStorage.setItem("managenz_token", response.data.token);
         
         // ✅ Save user data
@@ -97,13 +98,15 @@ export default function LoginPage() {
         // ✅ Save to cookie for server-side access
         document.cookie = `managenz_token=${response.data.token}; path=/; max-age=604800; SameSite=Lax`;
         
+        // ✅ Show success toast
         toast.success("Welcome back!");
         
-        // ✅ Use replace instead of push to prevent back-button issues
-        // Small delay to ensure toast shows and state updates
+        // ✅ Small delay to ensure toast shows before redirect
         setTimeout(() => {
+          // ✅ Use replace to prevent back-button issues
           router.replace(returnTo);
-        }, 500);
+          router.refresh(); // Force refresh to pick up new auth state
+        }, 600);
       } else {
         toast.error(response.data.message || "Login failed");
       }
@@ -115,7 +118,7 @@ export default function LoginPage() {
     }
   };
 
-  // ✅ Show loading state while checking auth to prevent flicker
+  // ✅ Show loading state while checking auth (prevents flicker)
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -135,6 +138,7 @@ export default function LoginPage() {
           onClick={() => router.push("/")}
           className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors"
           type="button"
+          disabled={loading}
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Home
@@ -159,7 +163,7 @@ export default function LoginPage() {
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
               <input
                 type="email"
-                className="w-full pl-12 pr-4 py-3 bg-[#1a1a25] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                className="w-full pl-12 pr-4 py-3 bg-[#1a1a25] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all disabled:opacity-50"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -179,7 +183,7 @@ export default function LoginPage() {
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
               <input
                 type={showPassword ? "text" : "password"}
-                className="w-full pl-12 pr-12 py-3 bg-[#1a1a25] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                className="w-full pl-12 pr-12 py-3 bg-[#1a1a25] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all disabled:opacity-50"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -208,7 +212,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => router.push("/auth/forgot-password")}
-              className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+              className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
               disabled={loading}
             >
               Forgot password?
@@ -218,7 +222,7 @@ export default function LoginPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || !email || !password}
+            disabled={loading || !email.trim() || !password.trim()}
             className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-emerald-500/50 disabled:to-teal-600/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25"
           >
             {loading ? (
@@ -238,7 +242,7 @@ export default function LoginPage() {
             Don't have an account?{" "}
             <button
               onClick={() => router.push("/auth/signup")}
-              className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+              className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors disabled:opacity-50"
               type="button"
               disabled={loading}
             >
@@ -247,7 +251,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Debug info (only in development) */}
+        {/* Debug info (development only) */}
         {process.env.NODE_ENV === "development" && (
           <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
             <p className="text-xs text-slate-400">
