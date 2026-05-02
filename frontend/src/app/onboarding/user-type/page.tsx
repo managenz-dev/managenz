@@ -15,73 +15,19 @@ interface Domain {
 }
 
 const DOMAINS: Domain[] = [
-  {
-    id: "product",
-    name: "Product Management",
-    description: "Roadmaps, prioritization, stakeholder trade-offs",
-    icon: "cube",
-    color: "from-blue-500 to-indigo-600",
-  },
-  {
-    id: "marketing",
-    name: "Marketing",
-    description: "Brand building, campaigns, audience growth",
-    icon: "megaphone",
-    color: "from-pink-500 to-rose-600",
-  },
-  {
-    id: "sales",
-    name: "Sales",
-    description: "Revenue generation, pipeline management",
-    icon: "dollar",
-    color: "from-emerald-500 to-teal-600",
-  },
-  {
-    id: "finance",
-    name: "Finance",
-    description: "Budgeting, forecasting, capital decisions",
-    icon: "chart",
-    color: "from-cyan-500 to-blue-600",
-  },
-  {
-    id: "operations",
-    name: "Operations",
-    description: "Process design, efficiency, supply chain",
-    icon: "zap",
-    color: "from-amber-500 to-orange-600",
-  },
-  {
-    id: "hr",
-    name: "Human Resources",
-    description: "Hiring, culture, performance management",
-    icon: "users",
-    color: "from-purple-500 to-pink-600",
-  },
-  {
-    id: "strategy",
-    name: "Strategy",
-    description: "Competitive positioning, growth levers",
-    icon: "target",
-    color: "from-teal-500 to-cyan-600",
-  },
-  {
-    id: "entrepreneurship",
-    name: "Entrepreneurship",
-    description: "Founder decisions, fundraising, pivots",
-    icon: "lightbulb",
-    color: "from-violet-500 to-purple-600",
-  },
+  { id: "product", name: "Product Management", description: "Roadmaps, prioritization, stakeholder trade-offs", icon: "cube", color: "from-blue-500 to-indigo-600" },
+  { id: "marketing", name: "Marketing", description: "Brand building, campaigns, audience growth", icon: "megaphone", color: "from-pink-500 to-rose-600" },
+  { id: "sales", name: "Sales", description: "Revenue generation, pipeline management", icon: "dollar", color: "from-emerald-500 to-teal-600" },
+  { id: "finance", name: "Finance", description: "Budgeting, forecasting, capital decisions", icon: "chart", color: "from-cyan-500 to-blue-600" },
+  { id: "operations", name: "Operations", description: "Process design, efficiency, supply chain", icon: "zap", color: "from-amber-500 to-orange-600" },
+  { id: "hr", name: "Human Resources", description: "Hiring, culture, performance management", icon: "users", color: "from-purple-500 to-pink-600" },
+  { id: "strategy", name: "Strategy", description: "Competitive positioning, growth levers", icon: "target", color: "from-teal-500 to-cyan-600" },
+  { id: "entrepreneurship", name: "Entrepreneurship", description: "Founder decisions, fundraising, pivots", icon: "lightbulb", color: "from-violet-500 to-purple-600" },
 ];
 
 const iconMap: Record<string, any> = {
-  cube: Briefcase,
-  megaphone: TrendingUp,
-  dollar: DollarSign,
-  chart: BarChart3,
-  zap: Zap,
-  users: Users,
-  target: Target,
-  lightbulb: Lightbulb,
+  cube: Briefcase, megaphone: TrendingUp, dollar: DollarSign, chart: BarChart3,
+  zap: Zap, users: Users, target: Target, lightbulb: Lightbulb,
 };
 
 export default function UserTypeSelectionPage() {
@@ -92,18 +38,10 @@ export default function UserTypeSelectionPage() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // Check if user is logged in
     const storedUser = localStorage.getItem("managenz_user");
     const token = localStorage.getItem("managenz_token");
-    
-    if (!token) {
-      router.push("/auth/login");
-      return;
-    }
-    
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    if (!token) { router.push("/auth/login"); return; }
+    if (storedUser) setUser(JSON.parse(storedUser));
   }, [router]);
 
   const handlePrimarySelect = (domainId: string) => {
@@ -111,45 +49,29 @@ export default function UserTypeSelectionPage() {
       setPrimaryDomain(null);
     } else {
       setPrimaryDomain(domainId);
-      // Remove from supporting if it was there
       setSupportingDomains(prev => prev.filter(id => id !== domainId));
     }
   };
 
   const handleSupportingSelect = (domainId: string) => {
-    // Can't select primary as supporting
     if (primaryDomain === domainId) return;
-    
     setSupportingDomains(prev => {
-      if (prev.includes(domainId)) {
-        return prev.filter(id => id !== domainId);
-      } else {
-        if (prev.length >= 2) {
-          toast.error("You can select up to 2 supporting domains");
-          return prev;
-        }
-        return [...prev, domainId];
-      }
+      if (prev.includes(domainId)) return prev.filter(id => id !== domainId);
+      if (prev.length >= 2) { toast.error("You can select up to 2 supporting domains"); return prev; }
+      return [...prev, domainId];
     });
   };
 
   const handleContinue = async () => {
-    if (!primaryDomain) {
-      toast.error("Please select a primary domain");
-      return;
-    }
-
+    if (!primaryDomain) { toast.error("Please select a primary domain"); return; }
     setLoading(true);
     try {
-      // Save domain selection to backend
+      // ✅ CORRECT ENDPOINT: /onboarding/domains
       await api.post("/onboarding/domains", {
         primaryDomain,
         supportingDomains,
       });
-
       toast.success("Domains saved! Welcome to ManaGenz");
-      
-      // Redirect to dashboard
       router.push("/dashboard");
     } catch (err: any) {
       console.error("Error saving domains:", err);
@@ -178,141 +100,46 @@ export default function UserTypeSelectionPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-slate-400 hover:text-white mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back
+          <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-400 hover:text-white mb-4 transition-colors">
+            <ArrowLeft className="w-5 h-5" /> Back
           </button>
-          <h1 className="font-display font-bold text-3xl text-white mb-2">
-            Choose Your Domains
-          </h1>
-          <p className="font-body text-slate-400">
-            Pick 1 primary domain and up to 2 supporting domains to personalize your experience.
-          </p>
+          <h1 className="font-display font-bold text-3xl text-white mb-2">Choose Your Domains</h1>
+          <p className="font-body text-slate-400">Pick 1 primary domain and up to 2 supporting domains.</p>
         </div>
 
-        {/* Domain Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {DOMAINS.map((domain) => {
             const isPrimary = primaryDomain === domain.id;
             const isSupporting = supportingDomains.includes(domain.id);
             const isDisabled = !isSupporting && supportingDomains.length >= 2 && !isPrimary;
-
             return (
-              <div
-                key={domain.id}
-                className={`
-                  relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-200
-                  ${isPrimary 
-                    ? `bg-gradient-to-br ${domain.color} border-transparent shadow-lg shadow-${domain.color.split('-')[1]}-500/25` 
-                    : isSupporting
-                    ? `bg-slate-800/50 border-emerald-500/50`
-                    : isDisabled
-                    ? "bg-slate-900/30 border-slate-800 opacity-50 cursor-not-allowed"
-                    : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
-                  }
-                `}
-                onClick={() => {
-                  if (isDisabled) return;
-                  if (isPrimary) {
-                    handlePrimarySelect(domain.id);
-                  } else {
-                    handleSupportingSelect(domain.id);
-                  }
-                }}
-              >
-                {/* Selection Indicator */}
+              <div key={domain.id} className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-200 ${isPrimary ? `bg-gradient-to-br ${domain.color} border-transparent shadow-lg` : isSupporting ? `bg-slate-800/50 border-emerald-500/50` : isDisabled ? "bg-slate-900/30 border-slate-800 opacity-50 cursor-not-allowed" : "bg-slate-900/50 border-slate-800 hover:border-slate-700"}`} onClick={() => { if (isDisabled) return; if (isPrimary) handlePrimarySelect(domain.id); else handleSupportingSelect(domain.id); }}>
                 <div className="absolute top-4 right-4">
-                  {isPrimary ? (
-                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-emerald-600" />
-                    </div>
-                  ) : isSupporting ? (
-                    <div className="w-6 h-6 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    </div>
-                  ) : (
-                    <div className="w-6 h-6 bg-slate-800 border-2 border-slate-700 rounded-full" />
-                  )}
+                  {isPrimary ? <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center"><Check className="w-4 h-4 text-emerald-600" /></div> : isSupporting ? <div className="w-6 h-6 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center"><Check className="w-4 h-4 text-emerald-400" /></div> : <div className="w-6 h-6 bg-slate-800 border-2 border-slate-700 rounded-full" />}
                 </div>
-
-                {/* Icon */}
-                <div className={`
-                  w-12 h-12 rounded-lg flex items-center justify-center mb-4
-                  ${isPrimary ? "bg-white/20" : `bg-gradient-to-br ${domain.color}`}
-                `}>
-                  {getIcon(domain.icon)}
-                </div>
-
-                {/* Content */}
-                <h3 className={`font-semibold mb-2 ${isPrimary ? "text-white" : "text-slate-200"}`}>
-                  {domain.name}
-                </h3>
-                <p className={`text-sm ${isPrimary ? "text-white/80" : "text-slate-400"}`}>
-                  {domain.description}
-                </p>
-
-                {/* Label */}
-                {isPrimary && (
-                  <div className="mt-3 text-xs font-medium text-white/90">
-                    Primary Domain
-                  </div>
-                )}
-                {isSupporting && (
-                  <div className="mt-3 text-xs font-medium text-emerald-400">
-                    Supporting Domain
-                  </div>
-                )}
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${isPrimary ? "bg-white/20" : `bg-gradient-to-br ${domain.color}`}`}>{getIcon(domain.icon)}</div>
+                <h3 className={`font-semibold mb-2 ${isPrimary ? "text-white" : "text-slate-200"}`}>{domain.name}</h3>
+                <p className={`text-sm ${isPrimary ? "text-white/80" : "text-slate-400"}`}>{domain.description}</p>
+                {isPrimary && <div className="mt-3 text-xs font-medium text-white/90">Primary Domain</div>}
+                {isSupporting && <div className="mt-3 text-xs font-medium text-emerald-400">Supporting Domain</div>}
               </div>
             );
           })}
         </div>
 
-        {/* Selection Summary */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mb-6">
           <h3 className="text-sm font-medium text-slate-400 mb-3">YOUR SELECTION</h3>
           <div className="flex flex-wrap gap-2">
-            {primaryDomain ? (
-              <span className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-400 text-sm font-medium">
-                ✓ Primary: {DOMAINS.find(d => d.id === primaryDomain)?.name}
-              </span>
-            ) : (
-              <span className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-500 text-sm">
-                No primary domain selected
-              </span>
-            )}
-            {supportingDomains.map(domainId => (
-              <span key={domainId} className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 text-sm">
-                {DOMAINS.find(d => d.id === domainId)?.name}
-              </span>
-            ))}
-            {supportingDomains.length < 2 && (
-              <span className="px-4 py-2 bg-slate-800/50 border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">
-                +{2 - supportingDomains.length} more supporting domain(s)
-              </span>
-            )}
+            {primaryDomain ? <span className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-400 text-sm font-medium">✓ Primary: {DOMAINS.find(d => d.id === primaryDomain)?.name}</span> : <span className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-500 text-sm">No primary domain selected</span>}
+            {supportingDomains.map(domainId => <span key={domainId} className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 text-sm">{DOMAINS.find(d => d.id === domainId)?.name}</span>)}
+            {supportingDomains.length < 2 && <span className="px-4 py-2 bg-slate-800/50 border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">+{2 - supportingDomains.length} more supporting domain(s)</span>}
           </div>
         </div>
 
-        {/* Continue Button */}
         <div className="flex justify-end">
-          <button
-            onClick={handleContinue}
-            disabled={!primaryDomain || loading}
-            className="px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-violet-500/25 disabled:shadow-none"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
-              </span>
-            ) : (
-              "Continue to Dashboard"
-            )}
+          <button onClick={handleContinue} disabled={!primaryDomain || loading} className="px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-violet-500/25 disabled:shadow-none">
+            {loading ? <span className="flex items-center gap-2"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</span> : "Continue to Dashboard"}
           </button>
         </div>
       </div>
