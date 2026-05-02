@@ -7,7 +7,7 @@ const jwt = require("jsonwebtoken");
 // Middleware to verify JWT token
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ success: false, message: "No token provided" });
@@ -22,7 +22,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// POST /api/onboarding/domains - Save user's domain selection
+// ✅ POST /api/onboarding/domains
 router.post("/domains", authenticateToken, async (req, res) => {
   try {
     const { primaryDomain, supportingDomains } = req.body;
@@ -32,8 +32,8 @@ router.post("/domains", authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Primary domain is required" });
     }
 
-    // Validate domain IDs
     const validDomains = ["product", "marketing", "sales", "finance", "operations", "hr", "strategy", "entrepreneurship"];
+    
     if (!validDomains.includes(primaryDomain)) {
       return res.status(400).json({ success: false, message: "Invalid primary domain" });
     }
@@ -52,15 +52,14 @@ router.post("/domains", authenticateToken, async (req, res) => {
       }
     }
 
-    // ✅ FIXED: Use separate data variable for Prisma update
+    // ✅ Use separate data variable for Prisma
     const updateUserData = {
-      userType: "student", // or "professional" based on your logic
+      userType: "student",
       primaryDomain,
       supportingDomains: supportingDomains || [],
       onboardingCompleted: true,
     };
 
-    // Update user with domain selections
     const updatedUser = await prisma.user.update({
       where: { email: userEmail },
        updateUserData,
