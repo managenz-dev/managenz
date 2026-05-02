@@ -112,6 +112,7 @@ exports.sendOTP = async (req, res) => {
 
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
+// ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 exports.verifyOTP = async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -132,30 +133,49 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
     }
 
-    // Mark as verified
+    // Mark OTP as verified
     const updateVerificationData = { isVerified: true };
     await prisma.emailVerification.update({
       where: { id: verification.id },
        updateVerificationData,
     });
 
+    // Mark user email as verified
     const updateUserEmailData = { isEmailVerified: true };
     await prisma.user.update({
       where: { email },
        updateUserEmailData,
     });
 
-    // ✅ GENERATE JWT TOKEN FOR THE USER
-    const user = await prisma.user.findUnique({ where: { email } });
-    const token = require("jsonwebtoken").sign(
+    // ✅ Fetch the full user record
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isEmailVerified: true,
+        userType: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // ✅ Generate JWT token
+    const jwt = require("jsonwebtoken");
+    const token = jwt.sign(
       { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "fallback-secret-key-change-in-production",
       { expiresIn: "7d" }
     );
 
-    // ✅ RETURN TOKEN + USER DATA
-    res.json({ 
-      success: true, 
+    // ✅ Return token + user data
+    res.json({
+      success: true,
       message: "Email verified successfully",
       token,
       user: {
@@ -164,7 +184,8 @@ exports.verifyOTP = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         isEmailVerified: user.isEmailVerified,
-      }
+        userType: user.userType,
+      },
     });
 
   } catch (err) {
