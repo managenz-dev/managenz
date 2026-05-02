@@ -52,25 +52,18 @@ router.post("/domains", authenticateToken, async (req, res) => {
       }
     }
 
+    // ✅ FIXED: Use separate data variable for Prisma update
+    const updateUserData = {
+      userType: "student", // or "professional" based on your logic
+      primaryDomain,
+      supportingDomains: supportingDomains || [],
+      onboardingCompleted: true,
+    };
+
     // Update user with domain selections
     const updatedUser = await prisma.user.update({
       where: { email: userEmail },
-       {
-        userType: "student", // or "professional" based on your logic
-        primaryDomain,
-        supportingDomains: supportingDomains || [],
-        onboardingCompleted: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        userType: true,
-        primaryDomain: true,
-        supportingDomains: true,
-        onboardingCompleted: true,
-      },
+       updateUserData,
     });
 
     res.json({
