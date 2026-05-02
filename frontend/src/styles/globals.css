@@ -1,0 +1,91 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   ManaGenz — Main Global Stylesheet
+   LOCATION: frontend/src/styles/globals.css
+   IMPORTED BY: frontend/src/app/layout.tsx  →  import "../styles/globals.css"
+
+   ⚠️  CRITICAL: The three @tailwind lines MUST be first.
+       Removing or moving them breaks ALL Tailwind classes site-wide.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Font rendering — crisp on all screens ──────────────────────────────── */
+*, *::before, *::after {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  box-sizing: border-box;
+}
+
+/* ── Base — light only, no dark mode ────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+body {
+  color: #0f172a;
+  background-color: #f6faf3;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Inputs — always readable ────────────────────────────────────────────── */
+input,
+textarea,
+select {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+/* ── Labels ──────────────────────────────────────────────────────────────── */
+label {
+  color: #374151;
+  font-weight: 600;
+}
+
+/* ── Focus rings — on-brand ──────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid #5a7f2e;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Autofill override — keeps inputs white ──────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
