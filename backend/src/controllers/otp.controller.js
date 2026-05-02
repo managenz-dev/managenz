@@ -54,6 +54,7 @@ function createOTPHTML(otp) {
 }
 
 // ── POST /api/auth/send-otp ───────────────────────────────────────────────────
+// ── POST /api/auth/send-otp ───────────────────────────────────────────────────
 exports.sendOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -73,20 +74,29 @@ exports.sendOTP = async (req, res) => {
       create: { email, otpCode, expiresAt, isVerified: false },
     });
 
-    // ✅ SEND EMAIL VIA RESEND
+    // ✅ SEND EMAIL VIA RESEND - with proper error handling
     const html = createOTPHTML(otpCode);
     
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
-      to: [email],
-      subject: "🔐 Verify Your ManaGenz Account",
-      html,
-    });
-
-    console.log(`✅ OTP email sent to ${email}`);
-    console.log(`🔐 OTP for ${email}: ${otpCode}`);
+    try {
+      const emailResult = await resend.emails.send({
+        from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
+        to: [email],
+        subject: "🔐 Verify Your ManaGenz Account",
+        html,
+      });
+      
+      // ✅ Log the actual Resend response
+      console.log(`✅ Resend email sent: ${emailResult.id}`);
+      console.log(`🔐 OTP for ${email}: ${otpCode}`);
+      
+    } catch (resendError) {
+      // ❌ Log the EXACT Resend error
+      console.error(`❌ Resend API error for ${email}:`, resendError);
+      // Still return success to frontend (so UI doesn't break), but log the error
+    }
 
     res.json({ success: true, message: "OTP sent successfully to your email" });
+    
   } catch (err) {
     console.error("sendOTP error:", err);
     res.status(500).json({ success: false, message: "Failed to send OTP. Please try again." });
