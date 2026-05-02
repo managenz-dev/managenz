@@ -32,8 +32,13 @@ const iconMap: Record<string, any> = {
 
 export default function DomainSelectionPage() {
   const router = useRouter();
-  const [primaryDomain, setPrimaryDomain] = useState<string | null>(null);
-  const [supportingDomains, setSupportingDomains] = useState<string[]>([]);
+  
+  // ✅ UNIFIED STATE: Prevents sync issues between primary and supporting
+  const [selections, setSelections] = useState({
+    primary: null as string | null,
+    supporting: [] as string[],
+  });
+  
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -49,56 +54,68 @@ export default function DomainSelectionPage() {
     if (storedUser) setUser(JSON.parse(storedUser));
   }, [router]);
 
-  // ✅ FIXED: Single click handler with proper primary/supporting logic
+  // ✅ ROBUST CLICK HANDLER
   const handleDomainClick = (domainId: string) => {
-    // If already selected, deselect it
-    if (primaryDomain === domainId) {
-      setPrimaryDomain(null);
+    console.log("🖱️ Clicked domain:", domainId);
+    console.log("📦 Current selections:", selections);
+
+    // 1. If already selected, DESELECT it
+    if (selections.primary === domainId) {
+      console.log("⛔ Deselecting Primary:", domainId);
+      setSelections({ primary: null, supporting: selections.supporting });
       return;
     }
-    if (supportingDomains.includes(domainId)) {
-      setSupportingDomains(prev => prev.filter(id => id !== domainId));
+    if (selections.supporting.includes(domainId)) {
+      console.log("⛔ Deselecting Supporting:", domainId);
+      setSelections({ 
+        primary: selections.primary, 
+        supporting: selections.supporting.filter(id => id !== domainId) 
+      });
       return;
     }
 
-    // If not selected, determine where to place it
-    if (!primaryDomain) {
-      // No primary yet → make this the primary
-      setPrimaryDomain(domainId);
+    // 2. If NOT selected, ADD it
+    if (!selections.primary) {
+      // ✅ No primary yet? This becomes PRIMARY.
+      console.log("⭐ Setting as PRIMARY:", domainId);
+      setSelections({ primary: domainId, supporting: selections.supporting });
     } else {
-      // Primary exists → add as supporting (max 2)
-      if (supportingDomains.length < 2) {
-        setSupportingDomains(prev => [...prev, domainId]);
+      // ✅ Primary exists? This becomes SUPPORTING (max 2).
+      if (selections.supporting.length < 2) {
+        console.log("➕ Setting as SUPPORTING:", domainId);
+        setSelections({ 
+          primary: selections.primary, 
+          supporting: [...selections.supporting, domainId] 
+        });
       } else {
-        toast.error("You can select up to 2 supporting domains. Deselect one first.");
+        toast.error("You can only select up to 2 supporting domains.");
       }
     }
   };
 
   const handleContinue = async () => {
-    if (!primaryDomain) {
+    if (!selections.primary) {
       toast.error("Please select a primary domain to continue");
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ Correct endpoint matching backend route
+      // ✅ Send to backend
       await api.post("/onboarding/domains", {
-        primaryDomain,
-        supportingDomains,
+        primaryDomain: selections.primary,
+        supportingDomains: selections.supporting,
       });
 
       toast.success("Domains saved! Redirecting to dashboard...");
       
-      // Small delay for toast to show
       setTimeout(() => {
         router.push("/dashboard");
         router.refresh();
       }, 600);
     } catch (err: any) {
       console.error("Error saving domains:", err);
-      toast.error(err?.response?.data?.message || "Failed to save domains. Please try again.");
+      toast.error(err?.response?.data?.message || "Failed to save domains.");
     } finally {
       setLoading(false);
     }
@@ -114,7 +131,7 @@ export default function DomainSelectionPage() {
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading your profile...</p>
+          <p className="text-slate-400">Loading...</p>
         </div>
       </div>
     );
@@ -137,16 +154,16 @@ export default function DomainSelectionPage() {
             Choose Your Domains
           </h1>
           <p className="font-body text-slate-400">
-            Pick <span className="text-emerald-400 font-semibold">1 primary domain</span> and up to <span className="text-emerald-400 font-semibold">2 supporting domains</span> to personalize your experience.
+            Pick <span className="text-emerald-400 font-semibold">1 primary domain</span> and up to <span className="text-emerald-400 font-semibold">2 supporting domains</span>.
           </p>
         </div>
 
         {/* Domain Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {DOMAINS.map((domain) => {
-            const isPrimary = primaryDomain === domain.id;
-            const isSupporting = supportingDomains.includes(domain.id);
-            const isDisabled = !isSupporting && supportingDomains.length >= 2;
+            const isPrimary = selections.primary === domain.id;
+            const isSupporting = selections.supporting.includes(domain.id);
+            const isDisabled = !isSupporting && selections.supporting.length >= 2;
 
             return (
               <button
@@ -156,7 +173,7 @@ export default function DomainSelectionPage() {
                 className={`
                   relative p-6 rounded-xl border-2 text-left transition-all duration-200 outline-none
                   ${isPrimary 
-                    ? `bg-gradient-to-br ${domain.color} border-transparent shadow-lg` 
+                    ? `bg-gradient-to-br ${domain.color} border-transparent shadow-lg ring-2 ring-white/20` 
                     : isSupporting
                     ? `bg-slate-800/50 border-emerald-500/50`
                     : isDisabled
@@ -168,7 +185,7 @@ export default function DomainSelectionPage() {
                 {/* Selection Indicator */}
                 <div className="absolute top-4 right-4">
                   {isPrimary ? (
-                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md">
                       <Check className="w-4 h-4 text-emerald-600" />
                     </div>
                   ) : isSupporting ? (
@@ -198,7 +215,7 @@ export default function DomainSelectionPage() {
 
                 {/* Label */}
                 {isPrimary && (
-                  <div className="mt-3 text-xs font-bold text-white uppercase tracking-wider">
+                  <div className="mt-3 text-xs font-bold text-white uppercase tracking-wider bg-black/20 inline-block px-2 py-1 rounded">
                     Primary Domain
                   </div>
                 )}
@@ -216,24 +233,24 @@ export default function DomainSelectionPage() {
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mb-6">
           <h3 className="text-sm font-medium text-slate-400 mb-3 uppercase tracking-wider">YOUR SELECTION</h3>
           <div className="flex flex-wrap gap-3">
-            {primaryDomain ? (
-              <span className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-400 text-sm font-medium flex items-center gap-2">
+            {selections.primary ? (
+              <span className="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-400 text-sm font-medium flex items-center gap-2 shadow-sm">
                 <Check className="w-4 h-4" />
-                Primary: {DOMAINS.find(d => d.id === primaryDomain)?.name}
+                Primary: {DOMAINS.find(d => d.id === selections.primary)?.name}
               </span>
             ) : (
               <span className="px-4 py-2 bg-slate-800/50 border border-dashed border-slate-700 rounded-lg text-slate-500 text-sm">
                 No primary domain selected
               </span>
             )}
-            {supportingDomains.map(domainId => (
+            {selections.supporting.map(domainId => (
               <span key={domainId} className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 text-sm flex items-center gap-2">
                 {DOMAINS.find(d => d.id === domainId)?.name}
               </span>
             ))}
-            {supportingDomains.length < 2 && (
+            {selections.supporting.length < 2 && (
               <span className="px-4 py-2 bg-slate-800/30 border border-dashed border-slate-700/50 rounded-lg text-slate-500 text-sm">
-                +{2 - supportingDomains.length} more supporting domain(s)
+                +{2 - selections.supporting.length} more supporting domain(s)
               </span>
             )}
           </div>
@@ -243,7 +260,7 @@ export default function DomainSelectionPage() {
         <div className="flex justify-end">
           <button
             onClick={handleContinue}
-            disabled={!primaryDomain || loading}
+            disabled={!selections.primary || loading}
             className="px-8 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:from-slate-800 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-violet-500/25 disabled:shadow-none flex items-center gap-2"
           >
             {loading ? (
