@@ -8,7 +8,7 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 
 const app = express();
-
+app.set('trust proxy', 1);
 // ── Security & Middleware ──────────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(morgan("dev"));
