@@ -1,11 +1,9 @@
 // backend/src/controllers/otp.controller.js
 const prisma = require("../utils/prisma");
 const { Resend } = require("resend");
+const jwt = require("jsonwebtoken");
 
-// 🔍 Debug: Log API key loading (first 10 chars only for security)
-console.log(`🔍 Resend SDK loaded, API key starts with: ${process.env.RESEND_API_KEY?.substring(0, 10)}...`);
-
-// Initialize Resend ONCE
+// Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate 6-digit OTP
@@ -65,42 +63,26 @@ exports.sendOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "Email required" });
     }
 
-    // Generate OTP
     const otpCode = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Save OTP to database
     await prisma.emailVerification.upsert({
-      where: { email },
+      where: { email: email.toLowerCase() },
       update: { otpCode, expiresAt, isVerified: false },
-      create: { email, otpCode, expiresAt, isVerified: false },
+      create: { email: email.toLowerCase(), otpCode, expiresAt, isVerified: false },
     });
 
-    // ✅ SEND EMAIL VIA RESEND - with FULL error logging
     const html = createOTPHTML(otpCode);
     
-    console.log(`📤 Attempting to send email via Resend to ${email}...`);
-    console.log(`🔑 Using API key: ${process.env.RESEND_API_KEY?.substring(0, 15)}...`);
-    console.log(`📧 From: ${process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>"}`);
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
+      to: [email],
+      subject: "🔐 Verify Your ManaGenz Account",
+      html,
+    });
 
-    try {
-      const emailResult = await resend.emails.send({
-        from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
-        to: [email],
-        subject: "🔐 Verify Your ManaGenz Account",
-        html,
-      });
-      
-      // ✅ Log the FULL Resend response
-      console.log(`✅ Resend response:`, JSON.stringify(emailResult, null, 2));
-      console.log(`🔐 OTP for ${email}: ${otpCode}`);
-      
-    } catch (resendError) {
-      // ❌ Log the EXACT Resend error with full details
-      console.error(`❌ Resend API error for ${email}:`);
-      console.error(`Error message:`, resendError.message);
-      console.error(`Error details:`, JSON.stringify(resendError, null, 2));
-    }
+    console.log(`✅ OTP email sent to ${email}`);
+    console.log(`🔐 OTP for ${email}: ${otpCode}`);
 
     res.json({ success: true, message: "OTP sent successfully to your email" });
     
@@ -111,72 +93,43 @@ exports.sendOTP = async (req, res) => {
 };
 
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
-// ── POST /api/auth/verify-otp ────────────────────────────────────────────────
-// ── POST /api/auth/verify-otp ────────────────────────────────────────────────
-// ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 exports.verifyOTP = async (req, res) => {
   try {
     const { email, code } = req.body;
-    
-    console.log(`🔍 verifyOTP called: email="${email}", code="${code}"`);
 
     if (!email || !code) {
-      console.log(`❌ Missing email or code`);
       return res.status(400).json({ success: false, message: "Email and code required" });
     }
 
-    // Find OTP record with detailed logging
-    console.log(`🔍 Searching for OTP: email="${email}", code="${code}"`);
     const verification = await prisma.emailVerification.findFirst({
       where: { 
-        email: email.trim().toLowerCase(), // Normalize email
-        otpCode: code.trim() // Trim code
+        email: email.toLowerCase().trim(),
+        otpCode: code.trim()
       },
     });
 
-    console.log(`🔍 Verification record found:`, verification ? "YES" : "NO");
-    
     if (!verification) {
-      // Debug: Check if email exists but code doesn't match
-      const emailOnly = await prisma.emailVerification.findFirst({
-        where: { email: email.trim().toLowerCase() },
-      });
-      if (emailOnly) {
-        console.log(`⚠️ Email found but code mismatch. Stored: "${emailOnly.otpCode}", Provided: "${code}"`);
-        console.log(`⚠️ Expires at: ${emailOnly.expiresAt}, Now: ${new Date()}, Expired: ${new Date() > emailOnly.expiresAt}`);
-      } else {
-        console.log(`⚠️ No verification record found for email: ${email}`);
-      }
       return res.status(400).json({ success: false, message: "Invalid OTP code" });
     }
 
-    // Check if expired
-    console.log(`🔍 Checking expiration: ${new Date()} > ${verification.expiresAt} = ${new Date() > verification.expiresAt}`);
     if (new Date() > verification.expiresAt) {
-      console.log(`❌ OTP expired`);
       return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
     }
 
-    // Mark OTP as verified
-    console.log(`✅ Marking OTP as verified for id: ${verification.id}`);
-    const updateVerificationData = { isVerified: true };
+    // Mark as verified
     await prisma.emailVerification.update({
       where: { id: verification.id },
-       updateVerificationData,
+      data: { isVerified: true },
     });
 
-    // Mark user email as verified
-    console.log(`✅ Marking user email as verified: ${email}`);
-    const updateUserEmailData = { isEmailVerified: true };
     await prisma.user.update({
-      where: { email: email.trim().toLowerCase() },
-       updateUserEmailData,
+      where: { email: email.toLowerCase().trim() },
+      data: { isEmailVerified: true },
     });
 
-    // Fetch the full user record
-    console.log(`🔍 Fetching user record for token generation`);
+    // Get user
     const user = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: email.toLowerCase().trim() },
       select: {
         id: true,
         email: true,
@@ -188,24 +141,17 @@ exports.verifyOTP = async (req, res) => {
       },
     });
 
-    console.log(`🔍 User record found:`, user ? "YES" : "NO");
     if (!user) {
-      console.log(`❌ User not found for email: ${email}`);
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Generate JWT token
-    console.log(`✅ Generating JWT token for user: ${user.id}`);
-    const jwt = require("jsonwebtoken");
+    // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || "fallback-secret-key-change-in-production",
+      process.env.JWT_SECRET || "your-secret-key-change-this",
       { expiresIn: "7d" }
     );
 
-    console.log(`✅ OTP verified successfully, returning token`);
-    
-    // Return token + user data
     res.json({
       success: true,
       message: "Email verified successfully",
@@ -221,10 +167,7 @@ exports.verifyOTP = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ verifyOTP error:", err);
-    console.error("❌ Error name:", err.name);
-    console.error("❌ Error message:", err.message);
-    console.error("❌ Error stack:", err.stack);
+    console.error("verifyOTP error:", err);
     res.status(500).json({ success: false, message: "Failed to verify OTP" });
   }
 };
@@ -242,25 +185,22 @@ exports.resendOTP = async (req, res) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await prisma.emailVerification.upsert({
-      where: { email },
+      where: { email: email.toLowerCase() },
       update: { otpCode, expiresAt, isVerified: false },
-      create: { email, otpCode, expiresAt, isVerified: false },
+      create: { email: email.toLowerCase(), otpCode, expiresAt, isVerified: false },
     });
 
     const html = createOTPHTML(otpCode);
     
-    try {
-      await resend.emails.send({
-        from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
-        to: [email],
-        subject: "🔐 Your New ManaGenz Verification Code",
-        html,
-      });
-      console.log(`✅ Resend email resent: to ${email}`);
-      console.log(`🔐 New OTP for ${email}: ${otpCode}`);
-    } catch (resendError) {
-      console.error(`❌ Resend API error for resend to ${email}:`, resendError);
-    }
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
+      to: [email],
+      subject: "🔐 Your New ManaGenz Verification Code",
+      html,
+    });
+
+    console.log(`✅ OTP email resent to ${email}`);
+    console.log(`🔐 New OTP for ${email}: ${otpCode}`);
 
     res.json({ success: true, message: "New OTP sent to your email" });
   } catch (err) {
