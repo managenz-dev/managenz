@@ -16,14 +16,12 @@ export default function VerifyOTPPage() {
   const [resending, setResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30);
 
-  // Auto-send OTP on page load
   useEffect(() => {
     if (email) {
       handleResend();
     }
   }, [email]);
 
-  // Countdown timer for resend
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
@@ -32,49 +30,74 @@ export default function VerifyOTPPage() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) {
+      toast.error("Email not found");
+      router.push("/auth/signup");
+      return;
+    }
     if (otp.length !== 6) {
       toast.error("Enter 6-digit code");
       return;
     }
     setLoading(true);
     try {
-      const response = await api.post("/otp/verify-otp", { email, code: otp });
+      const response = await api.post("/otp/verify-otp", { 
+        email: email.toLowerCase(), 
+        code: otp.trim() 
+      });
       
-      // ✅ Save token and user data if returned
       if (response.data.success && response.data.token) {
-        // Save to localStorage (client-side)
+        // Save token to localStorage
         localStorage.setItem("managenz_token", response.data.token);
         if (response.data.user) {
           localStorage.setItem("managenz_user", JSON.stringify(response.data.user));
         }
-        // Also save to cookie for server-side access (optional but recommended)
+        // Also save to cookie
         document.cookie = `managenz_token=${response.data.token}; path=/; max-age=604800; SameSite=Lax`;
+        
+        toast.success("Email verified! Redirecting...");
+        
+        // Force redirect with fresh state
+        setTimeout(() => {
+          router.push("/onboarding/user-type");
+          router.refresh();
+        }, 500);
+      } else {
+        toast.error("Verification failed - no token received");
       }
-      
-      toast.success("Email verified! Choose your path.");
-      router.push("/onboarding/user-type");
-      router.refresh(); // Force refresh to pick up new auth state
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Invalid code");
+      console.error("Verify error:", err);
+      toast.error(err?.response?.data?.message || "Invalid code. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
-    if (timeLeft > 0) return;
+    if (timeLeft > 0 || !email) return;
     setResending(true);
     try {
-      const res = await api.post("/otp/resend-otp", { email });
+      const res = await api.post("/otp/resend-otp", { email: email.toLowerCase() });
       toast.success("New code sent! Check your email.");
       setTimeLeft(30);
-      setOtp(""); // Clear OTP field
-    } catch {
-      toast.error("Failed to resend");
+      setOtp("");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to resend");
     } finally {
       setResending(false);
     }
   };
+
+  if (!email) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-4" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
@@ -95,6 +118,8 @@ export default function VerifyOTPPage() {
             <input
               type="text"
               maxLength={6}
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="w-full px-4 py-3 bg-[#1a1a25] border border-white/10 rounded-xl text-white text-center text-2xl tracking-[0.5em] font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               placeholder="000000"
               value={otp}
