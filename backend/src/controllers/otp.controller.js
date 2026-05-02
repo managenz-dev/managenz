@@ -2,7 +2,10 @@
 const prisma = require("../utils/prisma");
 const { Resend } = require("resend");
 
-// Initialize Resend
+// 🔍 Debug: Log API key loading (first 10 chars only for security)
+console.log(`🔍 Resend SDK loaded, API key starts with: ${process.env.RESEND_API_KEY?.substring(0, 10)}...`);
+
+// Initialize Resend ONCE
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate 6-digit OTP
@@ -53,7 +56,6 @@ function createOTPHTML(otp) {
   `;
 }
 
-// ── POST /api/auth/send-otp ───────────────────────────────────────────────────
 // ── POST /api/auth/send-otp ───────────────────────────────────────────────────
 exports.sendOTP = async (req, res) => {
   try {
@@ -162,15 +164,19 @@ exports.resendOTP = async (req, res) => {
     });
 
     const html = createOTPHTML(otpCode);
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
-      to: [email],
-      subject: "🔐 Your New ManaGenz Verification Code",
-      html,
-    });
-
-    console.log(`✅ OTP email resent to ${email}`);
-    console.log(`🔐 New OTP for ${email}: ${otpCode}`);
+    
+    try {
+      await resend.emails.send({
+        from: process.env.EMAIL_FROM || "ManaGenz <onboarding@resend.dev>",
+        to: [email],
+        subject: "🔐 Your New ManaGenz Verification Code",
+        html,
+      });
+      console.log(`✅ Resend email resent: to ${email}`);
+      console.log(`🔐 New OTP for ${email}: ${otpCode}`);
+    } catch (resendError) {
+      console.error(`❌ Resend API error for resend to ${email}:`, resendError);
+    }
 
     res.json({ success: true, message: "New OTP sent to your email" });
   } catch (err) {
