@@ -113,27 +113,52 @@ exports.sendOTP = async (req, res) => {
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 // ── POST /api/auth/verify-otp ────────────────────────────────────────────────
+// ── POST /api/auth/verify-otp ────────────────────────────────────────────────
 exports.verifyOTP = async (req, res) => {
   try {
     const { email, code } = req.body;
+    
+    console.log(`🔍 verifyOTP called: email="${email}", code="${code}"`);
 
     if (!email || !code) {
+      console.log(`❌ Missing email or code`);
       return res.status(400).json({ success: false, message: "Email and code required" });
     }
 
+    // Find OTP record with detailed logging
+    console.log(`🔍 Searching for OTP: email="${email}", code="${code}"`);
     const verification = await prisma.emailVerification.findFirst({
-      where: { email, otpCode: code },
+      where: { 
+        email: email.trim().toLowerCase(), // Normalize email
+        otpCode: code.trim() // Trim code
+      },
     });
 
+    console.log(`🔍 Verification record found:`, verification ? "YES" : "NO");
+    
     if (!verification) {
+      // Debug: Check if email exists but code doesn't match
+      const emailOnly = await prisma.emailVerification.findFirst({
+        where: { email: email.trim().toLowerCase() },
+      });
+      if (emailOnly) {
+        console.log(`⚠️ Email found but code mismatch. Stored: "${emailOnly.otpCode}", Provided: "${code}"`);
+        console.log(`⚠️ Expires at: ${emailOnly.expiresAt}, Now: ${new Date()}, Expired: ${new Date() > emailOnly.expiresAt}`);
+      } else {
+        console.log(`⚠️ No verification record found for email: ${email}`);
+      }
       return res.status(400).json({ success: false, message: "Invalid OTP code" });
     }
 
+    // Check if expired
+    console.log(`🔍 Checking expiration: ${new Date()} > ${verification.expiresAt} = ${new Date() > verification.expiresAt}`);
     if (new Date() > verification.expiresAt) {
+      console.log(`❌ OTP expired`);
       return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
     }
 
     // Mark OTP as verified
+    console.log(`✅ Marking OTP as verified for id: ${verification.id}`);
     const updateVerificationData = { isVerified: true };
     await prisma.emailVerification.update({
       where: { id: verification.id },
@@ -141,15 +166,17 @@ exports.verifyOTP = async (req, res) => {
     });
 
     // Mark user email as verified
+    console.log(`✅ Marking user email as verified: ${email}`);
     const updateUserEmailData = { isEmailVerified: true };
     await prisma.user.update({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
        updateUserEmailData,
     });
 
-    // ✅ Fetch the full user record
+    // Fetch the full user record
+    console.log(`🔍 Fetching user record for token generation`);
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
       select: {
         id: true,
         email: true,
@@ -161,11 +188,14 @@ exports.verifyOTP = async (req, res) => {
       },
     });
 
+    console.log(`🔍 User record found:`, user ? "YES" : "NO");
     if (!user) {
+      console.log(`❌ User not found for email: ${email}`);
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // ✅ Generate JWT token
+    // Generate JWT token
+    console.log(`✅ Generating JWT token for user: ${user.id}`);
     const jwt = require("jsonwebtoken");
     const token = jwt.sign(
       { userId: user.id, email: user.email },
@@ -173,7 +203,9 @@ exports.verifyOTP = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ✅ Return token + user data
+    console.log(`✅ OTP verified successfully, returning token`);
+    
+    // Return token + user data
     res.json({
       success: true,
       message: "Email verified successfully",
@@ -189,7 +221,10 @@ exports.verifyOTP = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("verifyOTP error:", err);
+    console.error("❌ verifyOTP error:", err);
+    console.error("❌ Error name:", err.name);
+    console.error("❌ Error message:", err.message);
+    console.error("❌ Error stack:", err.stack);
     res.status(500).json({ success: false, message: "Failed to verify OTP" });
   }
 };
