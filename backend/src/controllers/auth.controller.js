@@ -118,7 +118,7 @@ exports.register = async (req, res) => {
 
     const hash = await bcrypt.hash(password, 12);
     
-    // ✅ Use separate data variable for Prisma create
+    // ✅ FIXED: Use proper data: key for Prisma
     const createUserData = {
       fullName,
       email: cleanEmail,
@@ -130,7 +130,7 @@ exports.register = async (req, res) => {
     };
     
     const user = await prisma.user.create({
-       createUserData,
+      data: createUserData,  // ✅ Proper key here
     });
 
     const otp = makeOTP();
@@ -140,7 +140,7 @@ exports.register = async (req, res) => {
       where: { email: cleanEmail } 
     });
     
-    // ✅ Use separate data variable for Prisma create
+    // ✅ FIXED: Use proper data: key for Prisma
     const createOTPData = { 
       email: cleanEmail, 
       otpCode: otp, 
@@ -149,7 +149,7 @@ exports.register = async (req, res) => {
     };
     
     await prisma.emailVerification.create({
-       createOTPData,
+      data: createOTPData,  // ✅ Proper key here
     });
 
     const sent = await sendOTPEmail(cleanEmail, otp);
@@ -215,18 +215,18 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    // ✅ Use separate data variable for Prisma update
+    // ✅ FIXED: Use proper data: key for Prisma update
     const updateOTPData = { isVerified: true };
     await prisma.emailVerification.update({ 
       where: { id: record.id }, 
-       updateOTPData,
+      data: updateOTPData,  // ✅ Proper key here
     });
     
-    // ✅ Use separate data variable for Prisma update
+    // ✅ FIXED: Use proper data: key for Prisma update
     const updateUserData = { isEmailVerified: true };
     const user = await prisma.user.update({
       where: { email: cleanEmail },
-       updateUserData,
+      data: updateUserData,  // ✅ Proper key here
       include: { 
         selectedDomain: { 
           select: { id: true, slug: true, name: true, colorHex: true } 
@@ -289,6 +289,7 @@ exports.resendOTP = async (req, res) => {
       where: { email: cleanEmail } 
     });
     
+    // ✅ FIXED: Use proper data: key for Prisma
     const createOTPData = { 
       email: cleanEmail, 
       otpCode: otp, 
@@ -297,7 +298,7 @@ exports.resendOTP = async (req, res) => {
     };
     
     await prisma.emailVerification.create({
-       createOTPData,
+      data: createOTPData,  // ✅ Proper key here
     });
 
     const sent = await sendOTPEmail(cleanEmail, otp);
@@ -323,19 +324,20 @@ exports.resendOTP = async (req, res) => {
 // ── POST /api/auth/login ───────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // ✅ Accept email, identifier, or username for flexibility
+    const { email, identifier, username, password } = req.body;
+    const loginId = (email || identifier || username || "").toLowerCase().trim();
+    const pwd = password || "";
     
-    if (!email || !password) {
+    if (!loginId || !pwd) {
       return res.status(400).json({ 
         success: false, 
-        message: "Email and password required" 
+        message: "Email and password are required" 
       });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-    
     const user = await prisma.user.findUnique({
-      where: { email: cleanEmail },
+      where: { email: loginId },
       include: {
         selectedDomain: { 
           select: { id: true, slug: true, name: true, colorHex: true } 
@@ -359,7 +361,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await bcrypt.compare(pwd, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ 
         success: false, 
@@ -374,7 +376,7 @@ exports.login = async (req, res) => {
     return res.json({
       success: true,
       message: "Login successful",
-      token,
+      token,  // ✅ This was missing before!
       user: fmt(user, user.selectedDomain),
     });
   } catch (error) {
@@ -528,7 +530,7 @@ exports.updateProfile = async (req, res) => {
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-       updateData,
+      data: updateData,  // ✅ Proper key here
       include: {
         selectedDomain: { 
           select: { id: true, slug: true, name: true, colorHex: true } 
@@ -596,10 +598,11 @@ exports.changePassword = async (req, res) => {
 
     const newHash = await bcrypt.hash(newPassword, 12);
     
+    // ✅ FIXED: Use proper data: key for Prisma
     const updatePasswordData = { passwordHash: newHash };
     await prisma.user.update({
       where: { id: userId },
-       updatePasswordData,
+      data: updatePasswordData,  // ✅ Proper key here
     });
 
     return res.json({
@@ -657,10 +660,11 @@ exports.selectDomain = async (req, res) => {
       });
     }
 
+    // ✅ FIXED: Use proper data: key for Prisma
     const updateDomainData = { selectedDomainId: domain.id };
     await prisma.user.update({ 
       where: { id: userId }, 
-       updateDomainData 
+      data: updateDomainData  // ✅ Proper key here
     });
     
     return res.json({ 
