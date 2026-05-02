@@ -75,16 +75,18 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
     }
 
-    // Mark as verified
+    // ✅ FIXED: Use separate data variable to avoid parser confusion
+    const updateVerificationData = { isVerified: true };
     await prisma.emailVerification.update({
       where: { id: verification.id },
-       { isVerified: true },
+      data: updateVerificationData,
     });
 
-    // Update user's email verification status
+    // ✅ FIXED: Use separate data variable to avoid parser confusion
+    const updateUserEmailData = { isEmailVerified: true };
     await prisma.user.update({
       where: { email },
-       { isEmailVerified: true },
+      data: updateUserEmailData,
     });
 
     res.json({ success: true, message: "Email verified successfully" });
