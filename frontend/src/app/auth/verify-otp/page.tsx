@@ -38,9 +38,22 @@ export default function VerifyOTPPage() {
     }
     setLoading(true);
     try {
-      await api.post("/otp/verify-otp", { email, code: otp });
+      const response = await api.post("/otp/verify-otp", { email, code: otp });
+      
+      // ✅ Save token and user data if returned
+      if (response.data.success && response.data.token) {
+        // Save to localStorage (client-side)
+        localStorage.setItem("managenz_token", response.data.token);
+        if (response.data.user) {
+          localStorage.setItem("managenz_user", JSON.stringify(response.data.user));
+        }
+        // Also save to cookie for server-side access (optional but recommended)
+        document.cookie = `managenz_token=${response.data.token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+      
       toast.success("Email verified! Choose your path.");
       router.push("/onboarding/user-type");
+      router.refresh(); // Force refresh to pick up new auth state
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Invalid code");
     } finally {
@@ -53,10 +66,7 @@ export default function VerifyOTPPage() {
     setResending(true);
     try {
       const res = await api.post("/otp/resend-otp", { email });
-      toast.success("New code sent! Check console for development code.");
-      if (res.data.debugOTP) {
-        console.log("🔐 Your OTP:", res.data.debugOTP);
-      }
+      toast.success("New code sent! Check your email.");
       setTimeLeft(30);
       setOtp(""); // Clear OTP field
     } catch {
@@ -126,15 +136,6 @@ export default function VerifyOTPPage() {
             )}
           </p>
         </div>
-
-        {/* Development hint */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-            <p className="text-xs text-emerald-400 text-center">
-              💡 Dev Mode: Check browser console (F12) for OTP code
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
